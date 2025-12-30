@@ -1871,7 +1871,7 @@ export const createSearchNodesHelper = (nodePool: SearchNodePool): DebugPrimitiv
         const nodes = nodePool[nodeRef];
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
-            if (node.parentNodeRef === null || node.parentState === null) continue;
+            if (node.parentNodeRef === null) continue;
 
             // Find parent node
             const parentNodes = nodePool[node.parentNodeRef];
@@ -1879,7 +1879,7 @@ export const createSearchNodesHelper = (nodePool: SearchNodePool): DebugPrimitiv
 
             let parent: SearchNode | undefined;
             for (let j = 0; j < parentNodes.length; j++) {
-                if (parentNodes[j].state === node.parentState) {
+                if (parentNodes[j].parentNodeRef === node.grandParentNodeRef) {
                     parent = parentNodes[j];
                     break;
                 }

@@ -39,10 +39,8 @@ export type SearchNode = {
     total: number;
     /** the parent node ref */
     parentNodeRef: NodeRef | null;
-    /** the parent node state */
-    parentState: number | null;
-    /** node state */
-    state: number;
+    /** the grand parent node ref */
+    grandParentNodeRef: NodeRef | null;
     /** node flags */
     flags: number;
     /** the node ref for this search node */
@@ -53,12 +51,12 @@ export type SearchNodePool = { [nodeRef: NodeRef]: SearchNode[] };
 
 export type SearchNodeQueue = SearchNode[];
 
-export const getSearchNode = (pool: SearchNodePool, nodeRef: NodeRef, state: number): SearchNode | undefined => {
+export const getSearchNode = (pool: SearchNodePool, nodeRef: NodeRef, parentNodeRef?: NodeRef | null): SearchNode | undefined => {
     const nodes = pool[nodeRef];
     if (!nodes) return undefined;
 
     for (let i = 0; i < nodes.length; i++) {
-        if (nodes[i].state === state) {
+        if (parentNodeRef === undefined || nodes[i].parentNodeRef === parentNodeRef) {
             return nodes[i];
         }
     }
@@ -133,7 +131,7 @@ export const popNodeFromQueue = (queue: SearchNodeQueue): SearchNode | undefined
 
 export const reindexNodeInQueue = (queue: SearchNodeQueue, node: SearchNode): void => {
     for (let i = 0; i < queue.length; i++) {
-        if (queue[i].nodeRef === node.nodeRef && queue[i].state === node.state) {
+        if (queue[i].nodeRef === node.nodeRef && queue[i].parentNodeRef === node.parentNodeRef) {
             queue[i] = node;
             bubbleUpQueue(queue, i, node);
             return;
@@ -344,9 +342,8 @@ export const findNodePath = (
         cost: 0,
         total: vec3.distance(startPosition, endPosition) * HEURISTIC_SCALE,
         parentNodeRef: null,
-        parentState: null,
+        grandParentNodeRef: null,
         nodeRef: startNodeRef,
-        state: 0,
         flags: NODE_FLAG_OPEN,
         position: [startPosition[0], startPosition[1], startPosition[2]],
     };
@@ -391,22 +388,15 @@ export const findNodePath = (
                 continue;
             }
 
-            // deal explicitly with crossing tile boundaries by partitioning the search node refs by crossing side
-            let state = 0;
-            if (link.side !== 0xff) {
-                state = link.side >> 1;
-            }
-
             // get the neighbour node
-            let neighbourSearchNode = getSearchNode(nodes, neighbourNodeRef, state);
+            let neighbourSearchNode = getSearchNode(nodes, neighbourNodeRef, bestNodeRef);
             if (!neighbourSearchNode) {
                 neighbourSearchNode = {
                     cost: 0,
                     total: 0,
                     parentNodeRef: null,
-                    parentState: null,
+                    grandParentNodeRef: null,
                     nodeRef: neighbourNodeRef,
-                    state,
                     flags: 0,
                     position: [0, 0, 0],
                 };
@@ -454,7 +444,7 @@ export const findNodePath = (
 
             // add or update the node
             neighbourSearchNode.parentNodeRef = bestSearchNode.nodeRef;
-            neighbourSearchNode.parentState = bestSearchNode.state;
+            neighbourSearchNode.grandParentNodeRef = bestSearchNode.parentNodeRef;
             neighbourSearchNode.nodeRef = neighbourNodeRef;
             neighbourSearchNode.flags = neighbourSearchNode.flags & ~NODE_FLAG_CLOSED;
             neighbourSearchNode.cost = cost;
@@ -484,8 +474,8 @@ export const findNodePath = (
     while (currentNode) {
         path.push(currentNode.nodeRef);
 
-        if (currentNode.parentNodeRef !== null && currentNode.parentState !== null) {
-            currentNode = getSearchNode(nodes, currentNode.parentNodeRef, currentNode.parentState) ?? null;
+        if (currentNode.parentNodeRef !== null) {
+            currentNode = getSearchNode(nodes, currentNode.parentNodeRef, currentNode.grandParentNodeRef) ?? null;
         } else {
             currentNode = null;
         }
@@ -632,9 +622,8 @@ export const initSlicedFindNodePath = (
         cost: 0,
         total: vec3.distance(startPosition, endPosition) * HEURISTIC_SCALE,
         parentNodeRef: null,
-        parentState: null,
+        grandParentNodeRef: null,
         nodeRef: startNodeRef,
-        state: 0,
         flags: NODE_FLAG_OPEN,
         position: [startPosition[0], startPosition[1], startPosition[2]],
     };
@@ -716,23 +705,16 @@ export const updateSlicedFindNodePath = (navMesh: NavMesh, query: SlicedNodePath
                 continue;
             }
 
-            // handle tile boundary crossing
-            let state = 0;
-            if (link.side !== 0xff) {
-                state = link.side >> 1;
-            }
-
             // get or create neighbor node
-            let neighbourSearchNode = getSearchNode(query.nodes, neighbourNodeRef, state);
+            let neighbourSearchNode = getSearchNode(query.nodes, neighbourNodeRef, bestNodeRef);
 
             if (!neighbourSearchNode) {
                 neighbourSearchNode = {
                     cost: 0,
                     total: 0,
                     parentNodeRef: null,
-                    parentState: null,
+                    grandParentNodeRef: null,
                     nodeRef: neighbourNodeRef,
-                    state,
                     flags: 0,
                     position: [0, 0, 0],
                 };
@@ -748,9 +730,9 @@ export const updateSlicedFindNodePath = (navMesh: NavMesh, query: SlicedNodePath
 
             // check for raycast shortcut (if enabled)
             let foundShortcut = false;
-            if (query.raycastLimitSqr && bestSearchNode.parentNodeRef !== null && bestSearchNode.parentState !== null) {
+            if (query.raycastLimitSqr && bestSearchNode.parentNodeRef !== null && bestSearchNode.grandParentNodeRef !== null) {
                 // get grandparent node for potential raycast shortcut
-                const grandparentNode = getSearchNode(query.nodes, bestSearchNode.parentNodeRef, bestSearchNode.parentState);
+                const grandparentNode = getSearchNode(query.nodes, bestSearchNode.parentNodeRef, bestSearchNode.grandParentNodeRef);
 
                 if (grandparentNode) {
                     const rayLength = vec3.distance(grandparentNode.position, neighbourSearchNode.position);
@@ -817,10 +799,10 @@ export const updateSlicedFindNodePath = (navMesh: NavMesh, query: SlicedNodePath
             // update node
             if (foundShortcut) {
                 neighbourSearchNode.parentNodeRef = bestSearchNode.parentNodeRef;
-                neighbourSearchNode.parentState = bestSearchNode.parentState;
+                neighbourSearchNode.grandParentNodeRef = bestSearchNode.grandParentNodeRef;
             } else {
                 neighbourSearchNode.parentNodeRef = bestSearchNode.nodeRef;
-                neighbourSearchNode.parentState = bestSearchNode.state;
+                neighbourSearchNode.grandParentNodeRef = bestSearchNode.parentNodeRef;
             }
             neighbourSearchNode.cost = cost;
             neighbourSearchNode.total = total;
@@ -902,8 +884,8 @@ export const finalizeSlicedFindNodePath = (
         const wasDetached = (currentNode.flags & NODE_FLAG_PARENT_DETACHED) !== 0;
         reversedPath.push({ node: currentNode, wasDetached });
 
-        if (currentNode.parentNodeRef !== null && currentNode.parentState !== null) {
-            currentNode = getSearchNode(query.nodes, currentNode.parentNodeRef, currentNode.parentState) ?? null;
+        if (currentNode.parentNodeRef !== null) {
+            currentNode = getSearchNode(query.nodes, currentNode.parentNodeRef, currentNode.grandParentNodeRef) ?? null;
         } else {
             currentNode = null;
         }
@@ -1039,8 +1021,8 @@ export const finalizeSlicedFindNodePathPartial = (
         const wasDetached = (currentNode.flags & NODE_FLAG_PARENT_DETACHED) !== 0;
         reversedPath.push({ node: currentNode, wasDetached });
 
-        if (currentNode.parentNodeRef !== null && currentNode.parentState !== null) {
-            currentNode = getSearchNode(query.nodes, currentNode.parentNodeRef, currentNode.parentState) ?? null;
+        if (currentNode.parentNodeRef !== null) {
+            currentNode = getSearchNode(query.nodes, currentNode.parentNodeRef, currentNode.grandParentNodeRef) ?? null;
         } else {
             currentNode = null;
         }
@@ -1161,9 +1143,8 @@ export const moveAlongSurface = (
         cost: 0,
         total: 0,
         parentNodeRef: null,
-        parentState: null,
+        grandParentNodeRef: null,
         nodeRef: startNodeRef,
-        state: 0,
         flags: NODE_FLAG_CLOSED,
         position: [startPosition[0], startPosition[1], startPosition[2]],
     };
@@ -1248,16 +1229,15 @@ export const moveAlongSurface = (
                 }
             } else {
                 for (const neighbourRef of neis) {
-                    let neighbourNode = getSearchNode(nodes, neighbourRef, 0);
+                    let neighbourNode = getSearchNode(nodes, neighbourRef);
 
                     if (!neighbourNode) {
                         neighbourNode = {
                             cost: 0,
                             total: 0,
                             parentNodeRef: null,
-                            parentState: null,
+                            grandParentNodeRef: null,
                             nodeRef: neighbourRef,
-                            state: 0,
                             flags: 0,
                             position: [endPosition[0], endPosition[1], endPosition[2]],
                         };
@@ -1276,8 +1256,7 @@ export const moveAlongSurface = (
                     if (distSqr > searchRadSqr) continue;
 
                     // mark as visited and add to queue
-                    neighbourNode.parentNodeRef = curNode.nodeRef;
-                    neighbourNode.parentState = curNode.state;
+                    neighbourNode.parentNodeRef = curRef;
                     neighbourNode.flags |= NODE_FLAG_CLOSED;
                     queue.push(neighbourNode);
                 }
@@ -1291,7 +1270,7 @@ export const moveAlongSurface = (
             result.visited.push(currentNode.nodeRef);
 
             if (currentNode.parentNodeRef !== null) {
-                currentNode = getSearchNode(nodes, currentNode.parentNodeRef, 0) ?? null;
+                currentNode = getSearchNode(nodes, currentNode.parentNodeRef) ?? null;
             } else {
                 currentNode = null;
             }
@@ -1794,9 +1773,8 @@ export const findRandomPointAroundCircle = (
         cost: 0,
         total: 0,
         parentNodeRef: null,
-        parentState: null,
+        grandParentNodeRef: null,
         nodeRef: startNodeRef,
-        state: 0,
         flags: NODE_FLAG_OPEN,
         position: [position[0], position[1], position[2]],
     };
@@ -1888,16 +1866,15 @@ export const findRandomPointAroundCircle = (
             }
 
             // get or create neighbour node
-            let neighbourNode = getSearchNode(nodes, neighbourRef, 0);
+            let neighbourNode = getSearchNode(nodes, neighbourRef);
 
             if (!neighbourNode) {
                 neighbourNode = {
                     cost: 0,
                     total: 0,
                     parentNodeRef: null,
-                    parentState: null,
+                    grandParentNodeRef: null,
                     nodeRef: neighbourRef,
-                    state: 0,
                     flags: 0,
                     position: [0, 0, 0],
                 };
@@ -1921,7 +1898,6 @@ export const findRandomPointAroundCircle = (
             }
 
             neighbourNode.parentNodeRef = bestRef;
-            neighbourNode.parentState = 0;
             neighbourNode.flags = neighbourNode.flags & ~NODE_FLAG_CLOSED;
             neighbourNode.total = total;
 

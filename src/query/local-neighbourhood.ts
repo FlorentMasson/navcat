@@ -91,9 +91,8 @@ export const findLocalNeighbourhood = (
         cost: 0,
         total: 0,
         parentNodeRef: null,
-        parentState: null,
+        grandParentNodeRef: null,
         nodeRef: startNodeRef,
-        state: 0,
         flags: NODE_FLAG_CLOSED,
         position: [position[0], position[1], position[2]],
     };
@@ -128,7 +127,7 @@ export const findLocalNeighbourhood = (
             const neighbourRef = link.toNodeRef;
 
             // skip if already visited
-            const existingNode = getSearchNode(nodes, neighbourRef, 0);
+            const existingNode = getSearchNode(nodes, neighbourRef);
             if (existingNode && existingNode.flags & NODE_FLAG_CLOSED) continue;
 
             // get neighbour poly and tile
@@ -156,9 +155,8 @@ export const findLocalNeighbourhood = (
                 cost: 0,
                 total: 0,
                 parentNodeRef: curRef,
-                parentState: 0,
+                grandParentNodeRef: 0,
                 nodeRef: neighbourRef,
-                state: 0,
                 flags: NODE_FLAG_CLOSED,
                 position: [position[0], position[1], position[2]],
             };

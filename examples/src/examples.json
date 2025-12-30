@@ -153,5 +153,10 @@
         "title": "Chunky Tri Mesh",
         "description": "Example of using a chunky triangle mesh for querying triangles within areas",
         "tags": ["geometry", "spatial", "chunky", "tri-mesh"]
+    },
+    "example-search-benchmark": {
+        "title": "Search Benchmark",
+        "description": "Performance measurement of multiple search calls",
+        "tags": ["query"]
     }
 }
