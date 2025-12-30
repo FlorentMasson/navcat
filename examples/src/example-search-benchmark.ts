@@ -240,10 +240,13 @@ function runBenchmark() {
     let timeAfterRandomPoint = performance.now();
     let pathFailures = 0;
     let partialPaths = 0;
+    let totalSearchNodes = 0;
     for (let i = 0; i < pointPairs.length; i++) {
         const result = findNodePath(navMesh, pointPairs[i][0], pointPairs[i][2], pointPairs[i][1], pointPairs[i][3], ANY_QUERY_FILTER);
         if ((result.flags & FindNodePathResultFlags.PARTIAL_PATH) !== 0)
             partialPaths++;
+        for (let key in result.nodes)
+            totalSearchNodes += result.nodes[key].length;
         if (!result.success) {
             pathFailures++;
         }
@@ -267,6 +270,7 @@ function runBenchmark() {
     html += `<div style="color: #ccc; padding-left: 8px;">iterations: ${pointPairs.length}</div>`;
     html += `<div style="color: #ccc; padding-left: 8px;">failures: ${pathFailures}</div>`;
     html += `<div style="color: #ccc; padding-left: 8px;">partial paths: ${partialPaths} (${Math.round(partialPaths / pointPairs.length * 100)}%)</div>`;
+    html += `<div style="color: #ccc; padding-left: 8px;">avg search nodes: ${Math.round(totalSearchNodes / pointPairs.length)}</div>`;
     html += `<div style="color: #ccc; padding-left: 8px;">total time: ${Math.round(timeAfterSearch - timeAfterRandomPoint)} ms</div>`;
     html += `<div style="color: #ccc; padding-left: 8px;">time per iteration: ${((timeAfterSearch - timeAfterRandomPoint) / pointPairs.length).toFixed(4)} ms</div>`;
     html += `</div>`;
