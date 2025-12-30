@@ -242,7 +242,7 @@ function runBenchmark() {
     let partialPaths = 0;
     let totalSearchNodes = 0;
     for (let i = 0; i < pointPairs.length; i++) {
-        const result = findNodePath(navMesh, pointPairs[i][0], pointPairs[i][2], pointPairs[i][1], pointPairs[i][3], ANY_QUERY_FILTER);
+        const result = findNodePath(navMesh, pointPairs[i][0], pointPairs[i][2], pointPairs[i][1], pointPairs[i][3], queryFilter);
         if ((result.flags & FindNodePathResultFlags.PARTIAL_PATH) !== 0)
             partialPaths++;
         for (let key in result.nodes)
